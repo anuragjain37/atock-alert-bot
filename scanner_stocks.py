@@ -21,7 +21,7 @@ def send_alert(message: str):
 # ========================
 # Load symbols
 # ========================
-symbols_df = pd.read_excel("symbols.xlsx")
+symbols_df = pd.read_excel("symbols_stocks.xlsx")
 symbols = symbols_df.iloc[:, 0].dropna().tolist()
 
 alerts = []
