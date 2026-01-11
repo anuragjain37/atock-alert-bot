@@ -1,38 +1,54 @@
+import os
 import pandas as pd
 import yfinance as yf
+import requests
 from ta.trend import MACD
 from ta.momentum import RSIIndicator
-import requests
 
-send_alert("✅ Secrets loaded successfully")
+# ========================
+# Telegram configuration
+# ========================
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-BOT_TOKEN = "8202448416:AAGKBE87ejd8d-cXg7nJuUCGDTORw3a-7ps"
-CHAT_ID = "553467603"
+if not BOT_TOKEN or not CHAT_ID:
+    raise ValueError("BOT_TOKEN or CHAT_ID not found in environment variables")
 
-def send_alert(msg):
-    url = f"https://api.telegram.org/bot8202448416:AAGKBE87ejd8d-cXg7nJuUCGDTORw3a-7ps/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+def send_alert(message: str):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": message})
 
-symbols = pd.read_excel("symbols.xlsx")["symbol"].tolist()
+# ========================
+# Load symbols
+# ========================
+symbols_df = pd.read_excel("symbols.xlsx")
+symbols = symbols_df.iloc[:, 0].dropna().tolist()
 
 alerts = []
 
+# ========================
+# Scan each stock
+# ========================
 for symbol in symbols:
     try:
         df = yf.download(symbol, period="1y", interval="1d", progress=False)
-        if len(df) < 50:
+
+        if len(df) < 60:
             continue
 
-        macd = MACD(df["Close"])
-        df["macd"] = macd.macd()
-        df["macd_signal"] = macd.macd_signal()
+        # Indicators
+        macd_ind = MACD(df["Close"])
+        df["macd"] = macd_ind.macd()
+        df["macd_signal"] = macd_ind.macd_signal()
 
-        rsi = RSIIndicator(df["Close"]).rsi()
-        df["rsi"] = rsi
+        rsi_ind = RSIIndicator(df["Close"])
+        df["rsi"] = rsi_ind.rsi()
 
+        # 1-month return (~22 trading days)
         one_month_return = df["Close"].iloc[-1] / df["Close"].iloc[-22] - 1
 
-        buy = (
+        # BUY conditions
+        buy_signal = (
             df["macd"].iloc[-2] < df["macd_signal"].iloc[-2] and
             df["macd"].iloc[-1] > df["macd_signal"].iloc[-1] and
             df["rsi"].iloc[-2] > 30 and
@@ -40,7 +56,8 @@ for symbol in symbols:
             one_month_return < -0.05
         )
 
-        sell = (
+        # SELL conditions
+        sell_signal = (
             df["macd"].iloc[-2] > df["macd_signal"].iloc[-2] and
             df["macd"].iloc[-1] < df["macd_signal"].iloc[-1] and
             df["rsi"].iloc[-2] < 70 and
@@ -48,15 +65,29 @@ for symbol in symbols:
             one_month_return > 0.07
         )
 
-        if buy:
-            alerts.append(f"🟢 BUY signal: {symbol}")
-        elif sell:
-            alerts.append(f"🔴 SELL signal: {symbol}")
+        if buy_signal:
+            alerts.append(
+                f"🟢 BUY SIGNAL\n"
+                f"{symbol}\n"
+                f"1-month return: {one_month_return:.1%}"
+            )
+
+        if sell_signal:
+            alerts.append(
+                f"🔴 SELL SIGNAL\n"
+                f"{symbol}\n"
+                f"1-month return: {one_month_return:.1%}"
+            )
 
     except Exception as e:
-        print(symbol, e)
+        print(f"{symbol} failed: {e}")
 
+# ========================
+# Send alerts
+# ========================
 if alerts:
+    send_alert("\n\n".join(alerts))
+else:
+    print("No signals today")
 
-    send_alert("\n".join(alerts))
 
