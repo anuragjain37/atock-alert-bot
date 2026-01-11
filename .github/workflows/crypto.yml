@@ -1,9 +1,9 @@
-name: Crypto Scanner (15 min)
+name: Crypto Scanner (Every 30 Minutes)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *"   # Every 15 minutes, 24x7 UTC
+    - cron: "*/30 * * * *"   # Every 30 minutes, 24x7 UTC
 
 jobs:
   scan_crypto:
@@ -16,7 +16,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install pandas yfinance ta openpyxl requests
+      - name: Restore Yahoo crypto cache
+        uses: actions/cache@v4
+        with:
+          path: data_cache_crypto
+          key: yahoo-crypto-cache-v1
+
+      - name: Install dependencies
+        run: |
+          pip install pandas yfinance ta openpyxl requests
 
       - name: Run crypto scanner
         env:
