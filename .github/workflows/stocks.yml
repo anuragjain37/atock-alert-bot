@@ -3,7 +3,7 @@ name: Stock Scanner (Daily)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 21 * * 1-5"   # Once daily, Mon–Fri (after US close, UTC)
+    - cron: "15 15 * * 1-5"   # Once daily, Mon–Fri (after US close, UTC)
 
 jobs:
   scan_stocks:
