@@ -4,6 +4,8 @@ from ta.trend import MACD
 from ta.momentum import RSIIndicator
 import requests
 
+send_alert("✅ Secrets loaded successfully")
+
 BOT_TOKEN = "8202448416:AAGKBE87ejd8d-cXg7nJuUCGDTORw3a-7ps"
 CHAT_ID = "553467603"
 
@@ -57,3 +59,4 @@ for symbol in symbols:
 if alerts:
 
     send_alert("\n".join(alerts))
+
