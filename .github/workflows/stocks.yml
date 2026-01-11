@@ -1,9 +1,9 @@
-name: Stock Scanner (Daily)
+name: Stock Scanner (Every 2 Hours)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "15 15 * * 1-5"   # Once daily, Mon–Fri (after US close, UTC)
+    - cron: "0 */2 * * *"   # Every 2 hours, 24x7 UTC
 
 jobs:
   scan_stocks:
@@ -16,7 +16,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install pandas yfinance ta openpyxl requests
+      - name: Restore Yahoo cache
+        uses: actions/cache@v4
+        with:
+          path: data_cache
+          key: yahoo-stock-cache-v1
+
+      - name: Install dependencies
+        run: |
+          pip install pandas yfinance ta openpyxl requests
 
       - name: Run stock scanner
         env:
