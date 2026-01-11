@@ -4,6 +4,7 @@ import yfinance as yf
 import requests
 from ta.trend import MACD
 from ta.momentum import RSIIndicator
+from datetime import datetime, timedelta
 
 # ========================
 # Telegram configuration
@@ -26,13 +27,41 @@ symbols = symbols_df.iloc[:, 0].dropna().tolist()
 
 alerts = []
 
+CACHE_DIR = "data_cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+def get_price_data(symbol, lookback_days=365):
+    cache_file = os.path.join(CACHE_DIR, f"{symbol}.csv")
+
+    if os.path.exists(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+
+        last_date = df.index.max()
+        today = datetime.utcnow().date()
+
+        if last_date.date() < today:
+            new_df = yf.download(
+                symbol,
+                start=last_date + timedelta(days=1),
+                progress=False
+            )
+            if not new_df.empty:
+                df = pd.concat([df, new_df])
+                df.to_csv(cache_file)
+
+        return df
+
+    else:
+        df = yf.download(symbol, period=f"{lookback_days}d", progress=False)
+        df.to_csv(cache_file)
+        return df
 # ========================
 # Scan each stock
 # ========================
 for symbol in symbols:
     try:
-        df = yf.download(symbol, period="1y", interval="1d", progress=False)
-
+        df = get_price_data(symbol, lookback_days=365)
+        
         if len(df) < 60:
             continue
 
