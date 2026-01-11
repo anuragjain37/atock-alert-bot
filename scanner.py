@@ -91,3 +91,7 @@ else:
     print("No signals today")
 
 
+send_alert("🧪 Test alert – Stock Scanner is working")
+
+
+
