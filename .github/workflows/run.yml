@@ -1,10 +1,8 @@
-yaml
-
 name: Stock Scanner
 
 on:
   schedule:
-    - cron: "30 13 * * 1-5"   # Mon–Fri
+    - cron: "30 13 * * 1-5"   # Mon–Fri (UTC)
   workflow_dispatch:
 
 jobs:
@@ -12,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python
