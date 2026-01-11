@@ -4,6 +4,7 @@ import yfinance as yf
 import requests
 from ta.trend import MACD
 from ta.momentum import RSIIndicator
+from datetime import datetime, timedelta
 
 # ========================
 # Telegram configuration
@@ -12,7 +13,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 if not BOT_TOKEN or not CHAT_ID:
-    raise ValueError("BOT_TOKEN or CHAT_ID not found in environment variables")
+    raise ValueError("BOT_TOKEN or CHAT_ID not found")
 
 def send_alert(message: str):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -24,30 +25,76 @@ def send_alert(message: str):
 symbols_df = pd.read_excel("symbols_crypto.xlsx")
 symbols = symbols_df.iloc[:, 0].dropna().tolist()
 
+# ========================
+# Cache setup
+# ========================
+CACHE_DIR = "data_cache_crypto"
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+def get_price_data(symbol, lookback_days=90):
+    safe_symbol = symbol.replace("-", "_")
+    cache_file = os.path.join(CACHE_DIR, f"{safe_symbol}.csv")
+
+    if os.path.exists(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        last_ts = df.index.max()
+        now = datetime.utcnow()
+
+        # Fetch only missing hours
+        if last_ts < now - timedelta(hours=1):
+            new_df = yf.download(
+                symbol,
+                start=last_ts + timedelta(hours=1),
+                interval="1h",
+                progress=False
+            )
+            if not new_df.empty:
+                df = pd.concat([df, new_df])
+                df.to_csv(cache_file)
+
+        return df
+
+    df = yf.download(
+        symbol,
+        period=f"{lookback_days}d",
+        interval="1h",
+        progress=False
+    )
+    df.to_csv(cache_file)
+    return df
+
+def get_live_price(symbol):
+    try:
+        return yf.Ticker(symbol).info.get("regularMarketPrice")
+    except:
+        return None
+
+# ========================
+# Scan logic
+# ========================
 alerts = []
 
-# ========================
-# Scan each stock
-# ========================
 for symbol in symbols:
     try:
-        df = yf.download(symbol, period="1m", interval="1h", progress=False)
+        df = get_price_data(symbol)
 
-        if len(df) < 60:
+        if len(df) < 100:
             continue
 
-        # Indicators
-        macd_ind = MACD(df["Close"])
-        df["macd"] = macd_ind.macd()
-        df["macd_signal"] = macd_ind.macd_signal()
+        macd = MACD(df["Close"])
+        df["macd"] = macd.macd()
+        df["macd_signal"] = macd.macd_signal()
 
-        rsi_ind = RSIIndicator(df["Close"])
-        df["rsi"] = rsi_ind.rsi()
+        rsi = RSIIndicator(df["Close"]).rsi()
+        df["rsi"] = rsi
 
-        # 1-month return (~22 trading days)
-        one_month_return = df["Close"].iloc[-1] / df["Close"].iloc[-22] - 1
+        live_price = get_live_price(symbol)
+        if live_price is None:
+            continue
 
-        # BUY conditions
+        # 30-day return using hourly bars (24 * 30 = 720)
+        one_month_return = live_price / df["Close"].iloc[-720] - 1
+
         buy_signal = (
             df["macd"].iloc[-2] < df["macd_signal"].iloc[-2] and
             df["macd"].iloc[-1] > df["macd_signal"].iloc[-1] and
@@ -56,7 +103,6 @@ for symbol in symbols:
             one_month_return < -0.05
         )
 
-        # SELL conditions
         sell_signal = (
             df["macd"].iloc[-2] > df["macd_signal"].iloc[-2] and
             df["macd"].iloc[-1] < df["macd_signal"].iloc[-1] and
@@ -67,28 +113,24 @@ for symbol in symbols:
 
         if buy_signal:
             alerts.append(
-                f"🟢 BUY SIGNAL\n"
-                f"{symbol}\n"
-                f"1-month return: {one_month_return:.1%}"
+                f"🟢 CRYPTO BUY\n{symbol}\n30D return: {one_month_return:.1%}"
             )
 
         if sell_signal:
             alerts.append(
-                f"🔴 SELL SIGNAL\n"
-                f"{symbol}\n"
-                f"1-month return: {one_month_return:.1%}"
+                f"🔴 CRYPTO SELL\n{symbol}\n30D return: {one_month_return:.1%}"
             )
 
     except Exception as e:
-        print(f"{symbol} failed: {e}")
+        print(f"{symbol} error: {e}")
 
 # ========================
-# Send alerts
+# Notify
 # ========================
 if alerts:
     send_alert("\n\n".join(alerts))
 else:
-    print("No signals today")
+    print("No crypto signals this run")
 
 
 send_alert("🧪 Test alert – Stock Scanner is working")
