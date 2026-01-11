@@ -4,11 +4,11 @@ from ta.trend import MACD
 from ta.momentum import RSIIndicator
 import requests
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"
+BOT_TOKEN = "8202448416:AAGKBE87ejd8d-cXg7nJuUCGDTORw3a-7ps"
+CHAT_ID = "553467603"
 
 def send_alert(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot8202448416:AAGKBE87ejd8d-cXg7nJuUCGDTORw3a-7ps/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 symbols = pd.read_excel("symbols.xlsx")["symbol"].tolist()
@@ -55,4 +55,5 @@ for symbol in symbols:
         print(symbol, e)
 
 if alerts:
+
     send_alert("\n".join(alerts))
